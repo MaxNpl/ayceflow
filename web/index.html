@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>AYCEflow</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&display=swap');
+:root{
+  --ink:#181821;--inkSoft:#262630;--paper:#FAF6EF;--surface:#FFF;
+  --coral:#F2542D;--coralDeep:#D63E1C;--wasabi:#6F8F3E;--gold:#E0A100;
+  --line:#ECE4D7;--muted:#76716A;
+  --disp:'Bricolage Grotesque',system-ui,sans-serif;
+  --body:'Inter',system-ui,sans-serif
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body)}
+.disp{font-family:var(--disp)}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+button:disabled{cursor:not-allowed}
+.tab{font-variant-numeric:tabular-nums}
+.noscroll::-webkit-scrollbar{display:none}
+.muted{color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px}
+@keyframes pop{0%{transform:scale(.85)}60%{transform:scale(1.08)}100%{transform:scale(1)}}.pop{animation:pop .22s ease-out}
+@keyframes spin{to{transform:rotate(360deg)}}.spin{display:inline-block;animation:spin 1s linear infinite}
+/* layout */
+.wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+.grid2{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:600px){.grid2{grid-template-columns:1fr 1fr}}
+.layout{display:grid;grid-template-columns:1fr;gap:24px;padding-bottom:160px}
+@media(min-width:1024px){.layout{grid-template-columns:1fr 360px;padding-bottom:40px}}
+.aside{display:none}@media(min-width:1024px){.aside{display:block;padding-top:16px}}
+/* categoria bar */
+.catbtn{flex:0 0 auto;padding:8px 16px;border-radius:999px;font-weight:700;font-size:14px;border:1px solid var(--line);background:var(--surface);cursor:pointer}
+.catbtn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+/* bottom sheet mobile */
+.mobround{position:fixed;left:0;right:0;bottom:0;z-index:30;overflow:hidden}
+@media(min-width:1024px){.mobround{display:none}}
+.note{font-size:12px;margin-bottom:8px;padding:8px 12px;border-radius:8px;color:#fff}
+/* errore/info */
+.errbox{max-width:440px;margin:60px auto;padding:20px;text-align:center}
+.errbox h1{font-size:40px;color:var(--coral);margin:0 0 12px;font-family:var(--disp);font-weight:800}
+.errmsg{background:#FDE8E1;color:#B0331A;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-top:8px;text-align:left}
+</style></head>
+<body><div id="app"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+/* ============================================================================
+   AYCEflow — app tavolo
+   URL: /index.html?t=<qr_token>  (il tavolo viene dal QR, non dall'utente)
+   Carrello CONDIVISO e in DIRETTA tra tutti i telefoni del tavolo (Supabase Realtime).
+   Le credenziali Pienissimo non sono qui: le usa la edge function "send-order".
+   SLUG del locale: viene da config.js (non più nell'URL).
+   ============================================================================ */
+const {SUPABASE_URL, SUPABASE_ANON_KEY, SLUG} = window.AYCE_CFG || {};
+const QR = new URLSearchParams(location.search).get("t");
+
+// ---- variabili di stato globali ----
+let sb, LOCALE=null, TAVOLO=null, CART=null, MENU=[], GIRI=[];
+let CONF={}, activeCat=null, sheetOpen=false;
+let seatedAt=Date.now(), nowTs=Date.now();
+let sending=false, sendMsg={t:"",k:""};
+
+// ---- regole (lette dalla config del locale) ----
+const regola = id => (CONF.regole && CONF.regole[id]) || {attivo:true, maxVolte:{value:0,scope:"tavolo"}, maxPerGiro:0};
+const coperti = () => CART ? CART.coperti : 2;
+const scaled = mv => !mv.value ? Infinity : (mv.scope==="persona" ? mv.value*coperti() : mv.value);
+function sentCount() {
+  const m={};
+  GIRI.forEach(g => Object.entries(g.items||{}).forEach(([id,v]) => m[id]=(m[id]||0)+v.qty));
+  return m;
+}
+const qtyInCart = id => (CART && CART.items && CART.items[id]) ? CART.items[id].qty : 0;
+function remaining(id) {
+  const r=regola(id), mx=scaled(r.maxVolte);
+  if(mx===Infinity) return Infinity;
+  const s=sentCount();
+  return Math.max(0, mx-(s[id]||0)-qtyInCart(id));
+}
+const perGiroLeft = id => { const r=regola(id); if(!r.maxPerGiro)return Infinity; return Math.max(0,r.maxPerGiro-qtyInCart(id)); };
+const canAdd = id => remaining(id)>0 && perGiroLeft(id)>0;
+const isFav = id => (CONF.preferiti||[]).includes(Number(id));
+const isEvid = id => (CONF.evidenza||[]).includes(Number(id));
+
+// ---- globali giro corrente ----
+function globals() {
+  const G=CONF.global||{};
+  const maxGiro = (G.maxPezziScope==="persona" ? (G.maxPezziPerGiro||0)*coperti() : (G.maxPezziPerGiro||0)) || Infinity;
+  const items = CART ? Object.entries(CART.items||{}).map(([id,v])=>({id:Number(id),...v})) : [];
+  const count = items.reduce((n,i)=>n+i.qty, 0);
+  const lastAt = GIRI.length ? new Date(GIRI[0].inviato_il).getTime() : 0;
+  const cooldownLeft = Math.max(0, Math.ceil((lastAt+(G.cooldownMin||0)*60000-nowTs)/1000));
+  const tempoLeft = Math.max(0, (G.tempoTavoloMin||100)*60 - Math.floor((nowTs-seatedAt)/1000));
+  return {maxGiro, items, count, over:count>maxGiro, cooldownLeft, tempoLeft, blocked:(count>maxGiro||cooldownLeft>0||tempoLeft===0)};
+}
+
+// ---- util ----
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+
+// ---- edge function call ----
+async function fn(name, body) {
+  const r = await fetch(SUPABASE_URL+"/functions/v1/"+name, {
+    method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY,"apikey":SUPABASE_ANON_KEY},
+    body:JSON.stringify(body)
+  });
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error || "Errore "+name+" (HTTP "+r.status+")");
+  return j;
+}
+
+// ---- carrello: modifica atomica sul server ----
+async function modifica(id, delta) {
+  if(!CART) return;
+  const p = MENU.find(x=>x.id==id)||{};
+  if(delta>0 && !canAdd(id)) return;
+  const {data} = await sb.rpc("carrello_modifica", {p_cart:CART.id, p_id:String(id), p_delta:delta, p_nome:p.name||"", p_cat:p.cat||""});
+  if(data){CART=data; render();}
+}
+async function setCoperti(d) {
+  if(!CART) return;
+  const v = Math.max(1, coperti()+d);
+  const {data} = await sb.from("carrelli").update({coperti:v}).eq("id",CART.id).select().single();
+  if(data){CART=data; render();}
+}
+
+// ---- invio giro ----
+async function invia() {
+  const g=globals(); if(!g.count||g.blocked||sending) return;
+  sending=true; sendMsg={t:"",k:""}; render();
+  try {
+    const res = await fn("send-order", {slug:SLUG, tavolo_id:TAVOLO.id});
+    sendMsg = {t:"Ordine #"+res.id_ordine+" in cucina", k:"ok"};
+    setTimeout(()=>{if(sendMsg.k==="ok"){sendMsg={t:"",k:""};render();}}, 5000);
+  } catch(e) {
+    sendMsg = {t:e.message||"Errore invio", k:"err"};
+  }
+  sending=false; render();
+}
+
+// ============================================================ RENDER ============
+const app = document.getElementById("app");
+
+function render() {
+  if(!SUPABASE_URL || SUPABASE_URL.includes("INCOLLA")) {
+    app.innerHTML=errHTML("AYCEflow","config.js non compilato — mancano SUPABASE_URL e SUPABASE_ANON_KEY");return;
+  }
+  if(!QR) { app.innerHTML=errHTML("AYCEflow","Scansiona il QR del tuo tavolo per ordinare."); return; }
+  if(!TAVOLO) { app.innerHTML=bootHTML("Connessione al tavolo…"); return; }
+  app.innerHTML = header() + bannerHTML() + bodyHTML();
+}
+
+function errHTML(t, msg) {
+  return `<div class="errbox"><h1>${esc(t)}</h1><div class="errmsg">${esc(msg)}</div></div>`;
+}
+function bootHTML(msg) {
+  return `<div class="errbox"><h1 class="disp" style="color:var(--coral)">AYCEflow</h1>
+    <p class="muted">${esc(msg)}</p>
+    <span class="spin" style="font-size:28px;color:var(--coral)">◠</span></div>`;
+}
+
+function header() {
+  const g=globals(), lowTime=g.tempoLeft<900, showCop=CONF.coperti&&CONF.coperti.attivo;
+  return `<header style="position:sticky;top:0;z-index:20;background:var(--ink);color:var(--paper)">
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px">
+      <div style="display:flex;align-items:baseline;gap:10px;min-width:0">
+        <span class="disp" style="font-size:22px;font-weight:800;color:var(--coral);white-space:nowrap">${esc(CONF.brand||"AYCEflow")}</span>
+        <span class="disp" style="font-size:12px;font-weight:600;opacity:.55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(CONF.formula||"")}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <span style="padding:5px 12px;border-radius:999px;background:var(--inkSoft);font-size:13px">
+          <span style="opacity:.6">Tavolo</span> <b>${esc(TAVOLO.numero)}</b>
+        </span>
+        ${showCop ? `<span style="padding:5px 10px;border-radius:999px;background:var(--inkSoft);display:flex;align-items:center;gap:6px;font-size:13px">
+          <button onclick="setCoperti(-1)" style="color:var(--paper);font-weight:700;padding:2px 4px">−</button>
+          <span class="tab" style="font-weight:700">👥${coperti()}</span>
+          <button onclick="setCoperti(1)" style="color:var(--paper);font-weight:700;padding:2px 4px">＋</button>
+        </span>` : ""}
+        <span class="tab" id="timePill" style="padding:5px 12px;border-radius:999px;background:${lowTime?'var(--coralDeep)':'var(--inkSoft)'};font-size:13px">
+          ⏱ <b>${fmt(g.tempoLeft)}</b>
+        </span>
+      </div>
+    </div>
+  </header>`;
+}
+
+function bannerHTML() {
+  const b=CONF.banner; if(!b||!b.attivo||!b.img) return "";
+  const inner = `<img src="${esc(b.img)}" alt="" style="width:100%;display:block;border-radius:16px">
+    ${b.testo?`<div style="position:absolute;left:16px;bottom:12px;color:#fff;font-weight:800;font-family:var(--disp);text-shadow:0 2px 8px rgba(0,0,0,.6)">${esc(b.testo)}</div>`:""}`;
+  return `<div class="wrap" style="padding-top:14px">
+    <div style="position:relative;border-radius:16px;overflow:hidden">
+      ${b.link ? `<a href="${esc(b.link)}" target="_blank">${inner}</a>` : inner}
+    </div></div>`;
+}
+
+function bodyHTML() {
+  const favs = MENU.filter(p=>isFav(p.id)&&regola(p.id).attivo);
+  const cats=[]; MENU.forEach(p=>{if(regola(p.id).attivo&&!cats.includes(p.cat))cats.push(p.cat);});
+  const allCats = (favs.length?["★ Preferiti"]:[]).concat(cats);
+  if(!activeCat||!allCats.includes(activeCat)) activeCat=allCats[0];
+  const visible = activeCat==="★ Preferiti" ? favs : MENU.filter(p=>p.cat===activeCat&&regola(p.id).attivo);
+  const g = globals();
+  const catbar = allCats.map(c=>`<button onclick="activeCat=this.dataset.c;render()" data-c="${esc(c)}" class="catbtn disp ${c===activeCat?'on':''}">${esc(c)}</button>`).join("");
+  const cards = visible.map(p=>cardHTML(p)).join("");
+  const giriHTML = GIRI.length ? `<section style="margin-top:36px">
+    <h2 class="disp" style="font-size:20px;font-weight:800;margin:0 0 12px">Giri inviati</h2>
+    ${GIRI.map(gi=>`<div class="card" style="padding:16px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="disp" style="font-weight:800;font-size:18px">Giro ${gi.numero_giro}</span>
+          <span style="font-size:12px;padding:2px 8px;border-radius:999px;font-weight:600;background:#EEF3E6;color:var(--wasabi)">🍳 ordine #${gi.id_ordine_pn||"—"}</span>
+        </div>
+        <span class="muted tab" style="font-size:12px">${new Date(gi.inviato_il).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}</span>
+      </div>
+      <div class="muted" style="font-size:14px;display:flex;flex-wrap:wrap;gap:2px 16px">
+        ${Object.entries(gi.items||{}).map(([id,v])=>`<span><b style="color:var(--ink)">${v.qty}×</b> ${esc(v.nome)}</span>`).join("")}
+      </div>
+    </div>`).join("")}
+  </section>` : "";
+
+  return `<div class="wrap layout">
+    <main style="padding-top:16px">
+      <h1 class="disp" style="font-size:28px;font-weight:800;margin:0 0 12px">Componi il giro</h1>
+      <div class="noscroll" style="display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:8px 16px;position:sticky;top:60px;z-index:10;background:var(--paper)">${catbar}</div>
+      <div class="grid2" style="margin-top:12px">${cards}</div>
+      ${giriHTML}
+    </main>
+    <aside class="aside"><div style="position:sticky;top:84px;border-radius:16px;overflow:hidden;background:var(--ink);color:var(--paper)">${roundPanel(g)}</div></aside>
+  </div>
+  <div class="mobround">
+    <div id="sheetInner" style="transition:max-height .3s;overflow:hidden;max-height:${sheetOpen?'600px':'0'}">
+      <div style="margin:0 12px 8px;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--ink);color:var(--paper)">${roundPanel(g)}</div>
+    </div>
+    <button onclick="sheetOpen=!sheetOpen;render()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:${g.count&&!g.blocked?'var(--coral)':'var(--ink)'};color:var(--paper);border:none;cursor:pointer">
+      <span class="disp" style="font-weight:800;font-size:18px">${g.count===0?'Giro vuoto':'Giro · '+g.count+' '+(g.count===1?'pezzo':'pezzi')}</span>
+      <span style="font-weight:700;opacity:.7">${sheetOpen?'▼':'▲'}</span>
+    </button>
+  </div>`;
+}
+
+function cardHTML(p) {
+  const qty=qtyInCart(p.id), rem=remaining(p.id), so=rem===0, ev=isEvid(p.id), fav=isFav(p.id);
+  const badge = ev
+    ? `<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--gold);color:#fff;flex:0 0 auto">in evidenza</span>`
+    : rem===Infinity ? ""
+    : `<span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;flex:0 0 auto;background:${so?'#F6E3DE':'#F0EFEA'};color:${so?'var(--coralDeep)':'var(--muted)'}">${so?'limite':'ancora '+rem}</span>`;
+  const ctrl = qty===0
+    ? `<button onclick="modifica(${p.id},1)" ${so?'disabled':''} style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:999px;font-weight:700;font-size:14px;background:${so?'var(--line)':'var(--ink)'};color:${so?'var(--muted)':'var(--paper)'}">＋ Aggiungi</button>`
+    : `<div style="display:flex;align-items:center;gap:10px;padding:4px 8px;border-radius:999px;background:var(--ink);color:var(--paper)">
+        <button onclick="modifica(${p.id},-1)" style="padding:6px;color:var(--paper)">－</button>
+        <span class="pop tab" style="font-weight:700;width:20px;text-align:center;color:var(--coral)">${qty}</span>
+        <button onclick="modifica(${p.id},1)" ${canAdd(p.id)?'':'disabled'} style="padding:6px;color:var(--paper);opacity:${canAdd(p.id)?1:.3}">＋</button>
+      </div>`;
+  return `<div class="card" style="padding:16px;display:flex;flex-direction:column;justify-content:space-between;opacity:${so?.55:1};${ev?'border:2px solid var(--gold)':''}">
+    <div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <h3 class="disp" style="font-weight:700;font-size:17px;line-height:1.15;margin:0">${fav?'★ ':''}${esc(p.name)}</h3>
+        ${badge}
+      </div>
+      ${p.description?`<p class="muted" style="font-size:13px;margin:4px 0 0;line-height:1.3">${esc(p.description)}</p>`:''}
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px">${ctrl}</div>
+  </div>`;
+}
+
+function roundPanel(g) {
+  const items = g.items.map(i=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <span style="font-size:14px;line-height:1.2">${esc(i.nome)}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex:0 0 auto">
+        <button onclick="modifica(${i.id},-1)" style="padding:5px 8px;border-radius:999px;background:var(--inkSoft);color:var(--paper)">－</button>
+        <span class="tab" style="font-weight:700;width:22px;text-align:center">${i.qty}</span>
+        <button onclick="modifica(${i.id},1)" ${canAdd(i.id)?'':'disabled'} style="padding:5px 8px;border-radius:999px;background:var(--inkSoft);color:var(--paper);opacity:${canAdd(i.id)?1:.3}">＋</button>
+      </div>
+    </div>`).join("");
+  const notes=[];
+  if(g.over) notes.push(`<p class="note" style="background:var(--coralDeep)">Max ${g.maxGiro===Infinity?'∞':g.maxGiro} pezzi a giro. Togline ${g.count-g.maxGiro}.</p>`);
+  if(g.tempoLeft===0) notes.push(`<p class="note" style="background:var(--coralDeep)">Tempo tavolo terminato.</p>`);
+  if(g.cooldownLeft>0&&!g.over&&g.tempoLeft>0) notes.push(`<p class="note" style="background:var(--inkSoft)">Prossimo giro tra <b>${fmt(g.cooldownLeft)}</b>.</p>`);
+  if(sendMsg.k==="err") notes.push(`<p class="note" style="background:var(--coralDeep)">⚠ ${esc(sendMsg.t)}</p>`);
+  if(sendMsg.k==="ok") notes.push(`<p class="note" style="background:var(--wasabi)">✓ ${esc(sendMsg.t)}</p>`);
+  const canSend = g.count && !g.blocked && !sending;
+  return `<div>
+    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--inkSoft);display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.15em;opacity:.5;margin:0">Giro · condiviso</p>
+        <p class="disp tab" style="font-size:28px;font-weight:800;line-height:1;margin:4px 0 0">
+          <span style="color:${g.over?'var(--coral)':'var(--paper)'}">${g.count}</span>
+          ${g.maxGiro!==Infinity?`<span style="opacity:.4;font-size:18px"> / ${g.maxGiro} pezzi</span>`:""}
+        </p>
+      </div>
+      ${g.items.length?`<button onclick="modifica_clear()" style="padding:8px;border-radius:999px;background:var(--inkSoft);color:var(--paper)">🗑</button>`:""}
+    </div>
+    <div class="noscroll" style="padding:12px 20px;max-height:240px;overflow:auto">
+      ${g.items.length
+        ? `<div style="display:flex;flex-direction:column;gap:8px">${items}</div>`
+        : `<p style="opacity:.5;font-size:14px;text-align:center;padding:24px 0">Tocca i piatti per comporre il giro.</p>`}
+    </div>
+    <div style="padding:8px 20px 20px">
+      ${notes.join("")}
+      <button onclick="invia()" ${canSend?'':'disabled'} class="disp"
+        style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:12px;font-weight:800;font-size:17px;background:${canSend?'var(--coral)':'var(--inkSoft)'};color:var(--paper);opacity:${canSend?1:.5}">
+        ${sending?'<span class="spin">◠</span> Invio…':'✓ Invia il giro'}
+      </button>
+      <p style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 0">Ordina solo ciò che mangi.</p>
+    </div>
+  </div>`;
+}
+
+async function modifica_clear() {
+  if(!CART) return;
+  const {data} = await sb.from("carrelli").update({items:{},aggiornato_il:new Date().toISOString()}).eq("id",CART.id).select().single();
+  if(data){CART=data;render();}
+}
+
+// ---- timer ----
+setInterval(()=>{
+  if(!TAVOLO) return;
+  nowTs=Date.now();
+  const g=globals();
+  const tp=document.getElementById("timePill");
+  if(tp){tp.innerHTML="⏱ <b>"+fmt(g.tempoLeft)+"</b>";tp.style.background=g.tempoLeft<900?'var(--coralDeep)':'var(--inkSoft)';}
+  // se cooldown scade, ridisegno tutto (per sbloccare il tasto)
+  if(g.cooldownLeft===0&&document.querySelector('.note')) render();
+},1000);
+
+// ======================================================= INIT =================
+(async function init(){
+  render(); // schermata di boot immediata
+  if(!SUPABASE_URL||SUPABASE_URL.includes("INCOLLA")||!QR) return;
+  try {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // leggo locale (config pubblica: brand, regole, banner…)
+    const {data:loc, error:e1} = await sb.from("locali").select("*").eq("slug",SLUG).single();
+    if(e1||!loc) throw new Error(`Locale '${SLUG}' non trovato nel database. Hai lanciato seed.sql su Supabase?`);
+    LOCALE=loc; CONF=loc.config||{};
+    // leggo il tavolo dal qr_token (assegnato dal QR, non dall'utente)
+    const {data:tav, error:e2} = await sb.from("tavoli").select("*").eq("qr_token",QR).single();
+    if(e2||!tav) throw new Error(`QR token '${QR}' non trovato. Hai generato i tavoli con get-tavoli?`);
+    TAVOLO=tav; seatedAt=Date.now(); render();
+    // carrello condiviso: trova o crea
+    const {data:cart} = await sb.rpc("carrello_del_tavolo",{p_tavolo:tav.id});
+    CART=cart;
+    // storico giri di oggi
+    const {data:giri} = await sb.from("giri").select("*").eq("tavolo_id",tav.id).order("numero_giro",{ascending:false});
+    GIRI=giri||[];
+    // menù via edge function (le creds non escono mai dal server)
+    try {
+      const m = await fn("get-menu",{slug:SLUG});
+      MENU=m.menu||[];
+    } catch(e) {
+      MENU=[];
+      // mostro lo stesso l'interfaccia, con avviso
+      app.innerHTML=`<div class="errbox"><h1>AYCEflow</h1>
+        <div class="errmsg">Menù non disponibile: ${esc(e.message)}<br>Assicurati che la funzione <b>get-menu</b> sia deployata su Supabase.</div></div>`;
+      return;
+    }
+    render();
+    // REALTIME: carrello condiviso (aggiorna su tutti i telefoni del tavolo)
+    sb.channel("cart-"+CART.id)
+      .on("postgres_changes",{event:"UPDATE",schema:"public",table:"carrelli",filter:"id=eq."+CART.id},
+        p=>{CART=p.new; render();})
+      .subscribe();
+    // REALTIME: nuovi giri inviati
+    sb.channel("giri-"+tav.id)
+      .on("postgres_changes",{event:"INSERT",schema:"public",table:"giri",filter:"tavolo_id=eq."+tav.id},
+        p=>{GIRI.unshift(p.new); render();})
+      .subscribe();
+  } catch(e) {
+    app.innerHTML=`<div class="errbox">
+      <h1>AYCEflow</h1>
+      <div class="errmsg">${esc(e.message)}</div>
+    </div>`;
+  }
+})();
+</script>
+</body></html>

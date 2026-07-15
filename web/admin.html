@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AYCEflow · Impostazioni</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap');
+:root{--ink:#181821;--paper:#FAF6EF;--surface:#FFF;--coral:#F2542D;--gold:#E0A100;--line:#ECE4D7;--muted:#76716A;--wasabi:#6F8F3E}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif}
+.disp{font-family:'Bricolage Grotesque',system-ui}
+.wrap{max-width:860px;margin:0 auto;padding:24px 16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+h2{font-size:16px;font-weight:700;margin:0 0 14px;font-family:'Bricolage Grotesque',system-ui}
+label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px;background:#fff}
+input[type=checkbox]{width:20px;height:20px;cursor:pointer}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row-piatto{display:grid;grid-template-columns:1fr 36px 60px 96px 36px 36px;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+.hdr{font-size:10px;text-transform:uppercase;font-weight:700;color:var(--muted)}
+button{border:none;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px}
+.btn-primary{background:var(--coral);color:#fff}.btn-sec{background:var(--ink);color:#fff}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:12px 22px;border-radius:999px;font-weight:600;font-size:14px;z-index:99;pointer-events:none}
+.toast.ok{background:#2F5816;color:#fff}.toast.err{background:#B0331A;color:#fff}
+.msg{padding:10px 14px;border-radius:10px;font-size:13px;font-weight:600;margin-bottom:12px}
+.msg.err{background:#FDE8E1;color:#B0331A}.msg.ok{background:#EEF3E6;color:var(--wasabi)}
+.spinner{display:inline-block;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+
+<div id="loginScreen" class="wrap" style="max-width:400px">
+  <h1 class="disp" style="font-size:36px;font-weight:800;color:var(--coral);margin:0 0 4px">AYCEflow</h1>
+  <p style="color:var(--muted);margin:0 0 24px;font-size:14px">Impostazioni ristoratore</p>
+  <div class="card">
+    <label>PIN di accesso</label>
+    <input id="pin" type="password" inputmode="numeric" placeholder="es. 0000" autofocus onkeydown="if(event.key==='Enter')entra()">
+    <div id="loginMsg" style="margin-top:10px"></div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="entra()">Entra →</button>
+  </div>
+  <p style="font-size:12px;color:var(--muted);text-align:center">
+    Locale: <b id="slugLabel"></b> · <a href="hub.html" style="color:var(--muted)">← hub</a>
+  </p>
+</div>
+
+<div id="editScreen" style="display:none">
+  <div style="background:var(--ink);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20">
+    <span class="disp" style="font-weight:800;font-size:20px;color:var(--coral)">AYCEflow</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" onclick="salva()">💾 Salva</button>
+      <button onclick="logout()" style="background:rgba(255,255,255,.1);color:#fff;padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-size:13px">Esci</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div id="editMsg"></div>
+
+    <!-- GENERALI -->
+    <div class="card">
+      <h2>🏷 Generali</h2>
+      <div class="grid2">
+        <div><label>Nome mostrato nell'app</label><input id="brand"></div>
+        <div><label>Formula (es. "All You Can Eat")</label><input id="formula"></div>
+      </div>
+    </div>
+
+    <!-- REGOLE AYCE -->
+    <div class="card">
+      <h2>⏱ Regole AYCE</h2>
+      <div class="grid2">
+        <div><label>Tempo massimo tavolo (minuti)</label><input id="tt" type="number" min="0"></div>
+        <div><label>Cooldown tra un giro e l'altro (min, 0=off)</label><input id="cd" type="number" min="0"></div>
+        <div><label>Max pezzi per giro</label><input id="mp" type="number" min="0"></div>
+        <div><label>…contati per</label>
+          <select id="mps">
+            <option value="tavolo">tavolo (fisso)</option>
+            <option value="persona">persona (×coperti)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- COPERTI -->
+    <div class="card">
+      <h2>👥 Coperti</h2>
+      <div style="display:flex;align-items:center;gap:12px">
+        <input type="checkbox" id="copatt">
+        <label for="copatt" style="margin:0;font-size:14px;color:var(--ink);font-weight:500;cursor:pointer">
+          Chiedi i coperti al cliente quando apre l'app<br>
+          <span style="color:var(--muted);font-weight:400">Se disattivato, li imposta il ristoratore (il codice c'è, basta riattivare)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- BANNER -->
+    <div class="card">
+      <h2>📢 Banner pubblicità</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+        <input type="checkbox" id="banatt">
+        <label for="banatt" style="margin:0;font-size:14px;cursor:pointer;color:var(--ink);font-weight:500">Banner attivo</label>
+      </div>
+      <div class="grid2">
+        <div style="grid-column:1/3"><label>URL immagine (metti il link diretto all'immagine)</label><input id="banimg" placeholder="https://…/promo.jpg"></div>
+        <div><label>Testo sovrapposto (opzionale)</label><input id="bantesto"></div>
+        <div><label>Link al tocco (opzionale)</label><input id="banlink" placeholder="https://…"></div>
+      </div>
+      <div id="banPreview" style="margin-top:12px"></div>
+    </div>
+
+    <!-- PIATTI -->
+    <div class="card">
+      <h2>🍽 Regole per piatto</h2>
+      <p style="font-size:12px;color:var(--muted);margin-top:-8px">Dal menù Pienissimo. <b>AYCE</b> = visibile · <b>Max</b> = quante volte (0=illimitato) · <b>★</b> = preferito · <b>Evid.</b> = bordo dorato.</p>
+      <div class="row-piatto" style="padding-bottom:6px">
+        <span class="hdr">Piatto</span><span class="hdr">AYCE</span><span class="hdr">Max</span><span class="hdr">scope</span><span class="hdr">★</span><span class="hdr">Evid.</span>
+      </div>
+      <div id="piatti" style="max-height:400px;overflow:auto"></div>
+    </div>
+
+    <div style="text-align:right;margin-top:8px;padding-bottom:40px">
+      <button class="btn-primary" style="font-size:16px;padding:14px 28px" onclick="salva()">💾 Salva impostazioni</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" style="display:none" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+/* ============================================================================
+   admin.html — Backoffice ristoratore.
+   Legge/scrive locali.config su Supabase.
+   Il PIN viene verificato lato client (semplice, basta per un prodotto locale).
+   Le credenziali Pienissimo NON si vedono e NON si toccano da qui.
+   SLUG viene da config.js, non più dall'utente.
+   ============================================================================ */
+const {SUPABASE_URL, SUPABASE_ANON_KEY, SLUG} = window.AYCE_CFG || {};
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+document.getElementById("slugLabel").textContent = SLUG || "—";
+let LOC = null, CONF = {}, MENU = [];
+
+// ---- util ----
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function showToast(t, cls="ok") {
+  const el=document.getElementById("toast"); el.textContent=t; el.className="toast "+cls; el.style.display="block";
+  setTimeout(()=>el.style.display="none", 3000);
+}
+function showMsg(id, t, cls) { document.getElementById(id).innerHTML=t?`<div class="msg ${cls}">${t}</div>`:""; }
+
+async function fn(name, body) {
+  const r = await fetch(SUPABASE_URL+"/functions/v1/"+name, {
+    method:"POST", headers:{"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY,"apikey":SUPABASE_ANON_KEY},
+    body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "Errore funzione "+name+" (HTTP "+r.status+")");
+  return j;
+}
+
+// ---- login ----
+async function entra() {
+  const pin = document.getElementById("pin").value;
+  const lmsg = id => document.getElementById("loginMsg").innerHTML = id;
+  lmsg('<span class="spinner">◠</span> Verifica…');
+  try {
+    if (!SUPABASE_URL || SUPABASE_URL.includes("INCOLLA"))
+      throw new Error("config.js non compilato: metti URL e chiave Supabase");
+    const {data, error} = await sb.from("locali").select("*").eq("slug", SLUG).single();
+    if (error) throw new Error("Locale '"+SLUG+"' non trovato nel database. Hai lanciato seed.sql?");
+    if (!data) throw new Error("Locale non trovato");
+    const correctPin = (data.config && data.config.admin_pin) || "0000";
+    if (correctPin !== pin) throw new Error("PIN errato");
+    LOC = data; CONF = data.config || {};
+    lmsg("");
+    // carico il menù — se la edge function non è pronta mostro avviso ma entro lo stesso
+    try {
+      const m = await fn("get-menu", {slug: SLUG});
+      MENU = m.menu || [];
+    } catch(e) {
+      MENU = [];
+      showMsg("editMsg", `⚠ Menù non disponibile (${e.message}). Le regole per piatto non si possono modificare finché non è deployata la funzione <b>get-menu</b>. Il resto funziona.`, "err");
+    }
+    document.getElementById("loginScreen").style.display="none";
+    document.getElementById("editScreen").style.display="block";
+    popolaForm();
+  } catch(e) {
+    lmsg(`<div class="msg err">✗ ${esc(e.message)}</div>`);
+  }
+}
+function logout() {
+  document.getElementById("loginScreen").style.display="block";
+  document.getElementById("editScreen").style.display="none";
+  document.getElementById("pin").value="";
+}
+
+// ---- popola form ----
+function val(id, v) { const el=document.getElementById(id); if(!el)return; if(el.type==="checkbox")el.checked=!!v; else el.value=v??"";}
+function popolaForm() {
+  const G = CONF.global||{}, cop = CONF.coperti||{}, ban = CONF.banner||{};
+  val("brand", CONF.brand||LOC.nome); val("formula", CONF.formula||"");
+  val("tt", G.tempoTavoloMin||100); val("cd", G.cooldownMin||0);
+  val("mp", G.maxPezziPerGiro||8); val("mps", G.maxPezziScope||"tavolo");
+  val("copatt", cop.attivo);
+  val("banatt", ban.attivo); val("banimg", ban.img||""); val("bantesto", ban.testo||""); val("banlink", ban.link||"");
+  document.getElementById("banimg").addEventListener("input", aggiornaBanPreview);
+  aggiornaBanPreview();
+  // piatti
+  const cont = document.getElementById("piatti");
+  if (!MENU.length) { cont.innerHTML='<p style="color:var(--muted);font-size:13px;padding:8px 0">Menù non caricato.</p>'; return; }
+  cont.innerHTML = MENU.map(p => {
+    const r = (CONF.regole&&CONF.regole[p.id])||{attivo:true,maxVolte:{value:0,scope:"tavolo"},maxPerGiro:0};
+    const fav = (CONF.preferiti||[]).includes(p.id), ev = (CONF.evidenza||[]).includes(p.id);
+    return `<div class="row-piatto" data-id="${p.id}">
+      <span><b>${esc(p.name)}</b> <span style="font-size:11px;color:var(--muted)">#${p.id} · ${esc(p.cat)}</span></span>
+      <input type="checkbox" class="c-att" ${r.attivo?'checked':''}>
+      <input type="number" class="c-mv" value="${r.maxVolte.value}" style="width:58px" min="0">
+      <select class="c-sc"><option value="tavolo"${r.maxVolte.scope==='tavolo'?' selected':''}>/ tavolo</option><option value="persona"${r.maxVolte.scope==='persona'?' selected':''}>/ persona</option></select>
+      <input type="checkbox" class="c-fav" ${fav?'checked':''}  title="Preferito">
+      <input type="checkbox" class="c-ev"  ${ev?'checked':''}   title="In evidenza">
+    </div>`;
+  }).join("");
+}
+function aggiornaBanPreview() {
+  const src = document.getElementById("banimg").value;
+  document.getElementById("banPreview").innerHTML = src
+    ? `<img src="${esc(src)}" style="max-width:100%;border-radius:10px;max-height:120px;object-fit:cover" onerror="this.style.opacity=.3">`
+    : "";
+}
+
+// ---- salva ----
+async function salva() {
+  const v = id => document.getElementById(id);
+  const regole={}, preferiti=[], evidenza=[];
+  document.querySelectorAll(".row-piatto[data-id]").forEach(row => {
+    const id = +row.getAttribute("data-id");
+    regole[id] = {attivo:row.querySelector(".c-att").checked, maxVolte:{value:+row.querySelector(".c-mv").value||0, scope:row.querySelector(".c-sc").value}, maxPerGiro:0};
+    if(row.querySelector(".c-fav").checked) preferiti.push(id);
+    if(row.querySelector(".c-ev").checked) evidenza.push(id);
+  });
+  const config = {...CONF,
+    brand: v("brand").value, formula: v("formula").value,
+    global: {tempoTavoloMin:+v("tt").value||100, cooldownMin:+v("cd").value||0, maxPezziPerGiro:+v("mp").value||8, maxPezziScope:v("mps").value},
+    coperti: {attivo: v("copatt").checked},
+    banner: {attivo:v("banatt").checked, img:v("banimg").value, testo:v("bantesto").value, link:v("banlink").value},
+    regole, preferiti, evidenza
+  };
+  try {
+    const {error} = await sb.from("locali").update({config}).eq("slug", SLUG);
+    if (error) throw new Error(error.message);
+    CONF = config;
+    showToast("✓ Salvato — l'app tavolo si aggiorna da sola", "ok");
+    showMsg("editMsg","","");
+  } catch(e) {
+    showMsg("editMsg", "✗ Errore salvataggio: "+esc(e.message), "err");
+  }
+}
+</script>
+</body></html>
