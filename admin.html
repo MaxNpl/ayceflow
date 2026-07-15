@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AYCEflow · Backoffice</title>
+<style>
+ @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap');
+ :root{--ink:#181821;--paper:#FAF6EF;--surface:#FFF;--coral:#F2542D;--gold:#E0A100;--line:#ECE4D7;--muted:#76716A}
+ *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif}
+ .disp{font-family:'Bricolage Grotesque',system-ui,sans-serif}
+ .wrap{max-width:820px;margin:0 auto;padding:20px}
+ .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px}
+ h1{font-size:26px;margin:0} h2{font-size:17px;margin:0 0 12px}
+ label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:4px}
+ input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-family:inherit;background:#fff}
+ input[type=checkbox]{width:20px;height:20px}
+ button{border:none;border-radius:10px;padding:12px 18px;font-weight:700;cursor:pointer;font-family:inherit}
+ .primary{background:var(--coral);color:#fff}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+ .muted{color:var(--muted)} .row{display:grid;grid-template-columns:1fr auto auto auto auto auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+ .row .h{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:700}
+ .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:999px;font-weight:600}
+</style></head><body><div class="wrap" id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+/* AYCEflow — BACKOFFICE ristoratore. Modifica la config del locale (regole,
+   preferiti, evidenza, banner, coperti). Scrive in locali.config su supabase,
+   e l'app tavolo la legge in diretta. Le credenziali pienissimo NON si toccano
+   da qui (stanno nella tabella segreta). */
+const CFG=window.AYCE_CFG, FN=CFG.SUPABASE_URL+"/functions/v1/";
+const sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
+const app=document.getElementById("app");
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function fn(n,b){const r=await fetch(FN+n,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+CFG.SUPABASE_ANON_KEY,"apikey":CFG.SUPABASE_ANON_KEY},body:JSON.stringify(b)});return r.json();}
+let SLUG=new URLSearchParams(location.search).get("l")||"demo", LOC=null, CONF={}, MENU=[];
+
+function loginView(){app.innerHTML=`<div class="card" style="max-width:360px;margin:60px auto;text-align:center"><h1 class="disp" style="color:var(--coral)">AYCEflow</h1><p class="muted">Backoffice ristoratore</p><label style="text-align:left;margin-top:16px">Codice locale</label><input id="slug" value="${esc(SLUG)}"><label style="text-align:left;margin-top:10px">PIN</label><input id="pin" type="password" placeholder="PIN"><button class="primary" style="width:100%;margin-top:16px" onclick="entra()">Entra</button></div>`;}
+async function entra(){SLUG=document.getElementById("slug").value.trim();const pin=document.getElementById("pin").value;
+ const {data,error}=await sb.from("locali").select("*").eq("slug",SLUG).single();
+ if(error||!data){alert("Locale non trovato");return;}
+ if((data.config&&data.config.admin_pin||"0000")!==pin){alert("PIN errato");return;}
+ LOC=data;CONF=data.config||{};
+ const m=await fn("get-menu",{slug:SLUG});MENU=m.menu||[];
+ editView();}
+
+function editView(){const g=CONF.global||{},cop=CONF.coperti||{},ban=CONF.banner||{};
+ const rows=MENU.map(p=>{const r=(CONF.regole&&CONF.regole[p.id])||{attivo:true,maxVolte:{value:0,scope:"tavolo"},maxPerGiro:0};
+  const fav=(CONF.preferiti||[]).includes(p.id),ev=(CONF.evidenza||[]).includes(p.id);
+  return `<div class="row" data-id="${p.id}"><span><b>${esc(p.name)}</b> <span class="muted" style="font-size:11px">#${p.id} · ${esc(p.cat)}</span></span>
+   <span title="Attivo in AYCE"><input type="checkbox" class="c-att" ${r.attivo?'checked':''}></span>
+   <input type="number" class="c-mv" value="${r.maxVolte.value}" style="width:52px" title="Max volte (0=∞)">
+   <select class="c-sc" style="width:86px"><option value="tavolo" ${r.maxVolte.scope==='tavolo'?'selected':''}>/tavolo</option><option value="persona" ${r.maxVolte.scope==='persona'?'selected':''}>/persona</option></select>
+   <span title="Preferito ★"><input type="checkbox" class="c-fav" ${fav?'checked':''}></span>
+   <span title="In evidenza"><input type="checkbox" class="c-ev" ${ev?'checked':''}></span></div>`;}).join("");
+ app.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><h1 class="disp">AYCEflow · ${esc(LOC.nome)}</h1><button class="primary" onclick="salva()">💾 Salva</button></div>
+ <div class="card"><h2 class="disp">Generali</h2><div class="grid">
+  <div><label>Nome mostrato</label><input id="brand" value="${esc(CONF.brand||LOC.nome)}"></div>
+  <div><label>Formula</label><input id="formula" value="${esc(CONF.formula||'')}"></div>
+  <div><label>Cooldown tra giri (min, 0=off)</label><input id="cd" type="number" value="${g.cooldownMin||0}"></div>
+  <div><label>Tempo tavolo (min)</label><input id="tt" type="number" value="${g.tempoTavoloMin||100}"></div>
+  <div><label>Max pezzi per giro</label><input id="mp" type="number" value="${g.maxPezziPerGiro||8}"></div>
+  <div><label>…per</label><select id="mps"><option value="tavolo" ${g.maxPezziScope==='tavolo'?'selected':''}>tavolo</option><option value="persona" ${g.maxPezziScope==='persona'?'selected':''}>persona</option></select></div>
+  <div><label>Coperti chiesti al cliente?</label><select id="copatt"><option value="0" ${!cop.attivo?'selected':''}>No (li mette il ristoratore)</option><option value="1" ${cop.attivo?'selected':''}>Sì</option></select></div>
+ </div></div>
+ <div class="card"><h2 class="disp">Banner pubblicità</h2><div class="grid">
+  <div><label>Attivo?</label><select id="banatt"><option value="0" ${!ban.attivo?'selected':''}>No</option><option value="1" ${ban.attivo?'selected':''}>Sì</option></select></div>
+  <div><label>Testo sopra (opzionale)</label><input id="bantesto" value="${esc(ban.testo||'')}"></div>
+  <div style="grid-column:1/3"><label>URL immagine</label><input id="banimg" value="${esc(ban.img||'')}" placeholder="https://…/promo.jpg"></div>
+  <div style="grid-column:1/3"><label>Link al tocco (opzionale)</label><input id="banlink" value="${esc(ban.link||'')}"></div>
+ </div></div>
+ <div class="card"><h2 class="disp">Regole per piatto</h2><p class="muted" style="font-size:12px;margin-top:-6px">Dal menù Pienissimo. AYCE = disponibile · Max volte · ★ preferito · evidenza.</p>
+  <div class="row"><span class="h">Piatto</span><span class="h">AYCE</span><span class="h">Max</span><span class="h">scope</span><span class="h">★</span><span class="h">evid.</span></div>
+  <div style="max-height:420px;overflow:auto">${rows}</div></div>`;}
+
+async function salva(){
+ const v=id=>document.getElementById(id);
+ const regole={},preferiti=[],evidenza=[];
+ document.querySelectorAll(".row[data-id]").forEach(row=>{const id=+row.getAttribute("data-id");
+  regole[id]={attivo:row.querySelector(".c-att").checked,maxVolte:{value:+row.querySelector(".c-mv").value||0,scope:row.querySelector(".c-sc").value},maxPerGiro:0};
+  if(row.querySelector(".c-fav").checked)preferiti.push(id);
+  if(row.querySelector(".c-ev").checked)evidenza.push(id);});
+ const config={...CONF,brand:v("brand").value,formula:v("formula").value,
+  coperti:{attivo:v("copatt").value==="1"},
+  global:{cooldownMin:+v("cd").value||0,tempoTavoloMin:+v("tt").value||100,maxPezziPerGiro:+v("mp").value||8,maxPezziScope:v("mps").value},
+  banner:{attivo:v("banatt").value==="1",img:v("banimg").value,testo:v("bantesto").value,link:v("banlink").value},
+  regole,preferiti,evidenza};
+ const {error}=await sb.from("locali").update({config}).eq("slug",SLUG);
+ if(error){alert("Errore salvataggio: "+error.message);return;}
+ CONF=config;const t=document.createElement("div");t.className="toast";t.textContent="✓ Salvato — l'app tavolo si aggiorna da sola";document.body.appendChild(t);setTimeout(()=>t.remove(),3000);}
+loginView();
+</script></body></html>

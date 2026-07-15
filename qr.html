@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AYCEflow · QR tavoli</title>
+<style>
+ @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Inter:wght@400;600&display=swap');
+ body{margin:0;background:#FAF6EF;color:#181821;font-family:'Inter',system-ui,sans-serif;padding:20px}
+ .disp{font-family:'Bricolage Grotesque',sans-serif}
+ .bar{max-width:900px;margin:0 auto 16px;display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+ input{border:1px solid #ECE4D7;border-radius:10px;padding:9px 11px}
+ button{border:none;border-radius:10px;padding:10px 16px;font-weight:700;background:#F2542D;color:#fff;cursor:pointer}
+ .grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+ .qr{background:#fff;border:1px solid #ECE4D7;border-radius:14px;padding:14px;text-align:center}
+ .qr canvas{width:100%;height:auto} @media print{.bar{display:none}button{display:none}}
+</style></head><body>
+<div class="bar"><div><label style="font-size:12px;color:#76716A">Codice locale</label><br><input id="slug" value="demo"></div>
+<div><label style="font-size:12px;color:#76716A">Indirizzo web dell'app (Vercel)</label><br><input id="base" value="https://IL-TUO-SITO.vercel.app" style="width:280px"></div>
+<button onclick="genera()">Genera QR</button><button onclick="window.print()">🖨 Stampa</button></div>
+<div class="grid" id="grid"></div>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>
+/* Genera un QR per ogni tavolo del locale. Ogni QR punta a
+   <base>/index.html?l=<slug>&t=<qr_token>. Stampali e mettili sui tavoli. */
+const CFG=window.AYCE_CFG, sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
+async function genera(){
+ const slug=document.getElementById("slug").value.trim();
+ const base=document.getElementById("base").value.trim().replace(/\/$/,"");
+ const {data:loc}=await sb.from("locali").select("id").eq("slug",slug).single();
+ if(!loc){alert("Locale non trovato");return;}
+ const {data:tav}=await sb.from("tavoli").select("*").eq("locale_id",loc.id).order("numero");
+ const grid=document.getElementById("grid");grid.innerHTML="";
+ (tav||[]).forEach(t=>{const url=`${base}/index.html?l=${encodeURIComponent(slug)}&t=${encodeURIComponent(t.qr_token)}`;
+  const d=document.createElement("div");d.className="qr";
+  d.innerHTML=`<div class="disp" style="font-size:22px;font-weight:800">Tavolo ${t.numero}</div><canvas></canvas><div style="font-size:10px;color:#76716A;word-break:break-all">${url}</div>`;
+  grid.appendChild(d);QRCode.toCanvas(d.querySelector("canvas"),url,{width:180,margin:1});});}
+</script></body></html>
