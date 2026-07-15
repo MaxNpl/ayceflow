@@ -1,37 +1,106 @@
 <!DOCTYPE html>
-<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AYCEflow · QR tavoli</title>
+<html lang="it"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AYCEflow · QR Tavoli</title>
 <style>
- @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Inter:wght@400;600&display=swap');
- body{margin:0;background:#FAF6EF;color:#181821;font-family:'Inter',system-ui,sans-serif;padding:20px}
- .disp{font-family:'Bricolage Grotesque',sans-serif}
- .bar{max-width:900px;margin:0 auto 16px;display:flex;gap:8px;align-items:end;flex-wrap:wrap}
- input{border:1px solid #ECE4D7;border-radius:10px;padding:9px 11px}
- button{border:none;border-radius:10px;padding:10px 16px;font-weight:700;background:#F2542D;color:#fff;cursor:pointer}
- .grid{max-width:900px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
- .qr{background:#fff;border:1px solid #ECE4D7;border-radius:14px;padding:14px;text-align:center}
- .qr canvas{width:100%;height:auto} @media print{.bar{display:none}button{display:none}}
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Inter:wght@400;600&display=swap');
+:root{--ink:#181821;--coral:#F2542D;--paper:#FAF6EF;--line:#ECE4D7;--muted:#76716A;--wasabi:#6F8F3E}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;padding:24px}
+.disp{font-family:'Bricolage Grotesque',system-ui}
+.wrap{max-width:960px;margin:0 auto}
+.topbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:24px}
+input,select{border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-family:inherit;background:#fff;font-size:14px}
+button{border:none;border-radius:10px;padding:10px 18px;font-weight:700;cursor:pointer;font-family:inherit;font-size:14px}
+.btn-primary{background:var(--coral);color:#fff}.btn-sec{background:var(--ink);color:#fff}
+.btn-link{background:none;color:var(--muted);text-decoration:underline;padding:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:20px}
+.qr-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;text-align:center;break-inside:avoid}
+.qr-card img{width:160px;height:160px;display:block;margin:12px auto}
+.qr-num{font-size:24px;font-weight:800;font-family:'Bricolage Grotesque',system-ui}
+.qr-url{font-size:9px;color:var(--muted);word-break:break-all;margin-top:8px}
+.msg{padding:12px 16px;border-radius:12px;font-size:14px;font-weight:600;margin-top:12px}
+.msg.ok{background:#EEF3E6;color:var(--wasabi)}.msg.err{background:#FDE8E1;color:#B0331A}
+@media print{.topbar{display:none}.grid{gap:12px}}
 </style></head><body>
-<div class="bar"><div><label style="font-size:12px;color:#76716A">Codice locale</label><br><input id="slug" value="demo"></div>
-<div><label style="font-size:12px;color:#76716A">Indirizzo web dell'app (Vercel)</label><br><input id="base" value="https://IL-TUO-SITO.vercel.app" style="width:280px"></div>
-<button onclick="genera()">Genera QR</button><button onclick="window.print()">🖨 Stampa</button></div>
-<div class="grid" id="grid"></div>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <div class="disp" style="font-size:22px;font-weight:800;color:var(--coral)">AYCEflow · QR Tavoli</div>
+      <div style="font-size:12px;color:var(--muted)">Genera e stampa i QR da mettere sui tavoli</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-left:auto">
+      <div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:3px">Indirizzo web (Vercel)</div>
+        <input id="base" style="width:260px" placeholder="https://ayceflow.vercel.app">
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;padding-bottom:0">
+        <button class="btn-primary" onclick="genera()">📱 Genera QR</button>
+        <button class="btn-sec" onclick="window.print()">🖨 Stampa</button>
+        <a href="hub.html" style="font-size:12px;color:var(--muted)">← hub</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="msg"></div>
+  <div id="grid" class="grid"></div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script>
-/* Genera un QR per ogni tavolo del locale. Ogni QR punta a
-   <base>/index.html?l=<slug>&t=<qr_token>. Stampali e mettili sui tavoli. */
-const CFG=window.AYCE_CFG, sb=supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY);
-async function genera(){
- const slug=document.getElementById("slug").value.trim();
- const base=document.getElementById("base").value.trim().replace(/\/$/,"");
- const {data:loc}=await sb.from("locali").select("id").eq("slug",slug).single();
- if(!loc){alert("Locale non trovato");return;}
- const {data:tav}=await sb.from("tavoli").select("*").eq("locale_id",loc.id).order("numero");
- const grid=document.getElementById("grid");grid.innerHTML="";
- (tav||[]).forEach(t=>{const url=`${base}/index.html?l=${encodeURIComponent(slug)}&t=${encodeURIComponent(t.qr_token)}`;
-  const d=document.createElement("div");d.className="qr";
-  d.innerHTML=`<div class="disp" style="font-size:22px;font-weight:800">Tavolo ${t.numero}</div><canvas></canvas><div style="font-size:10px;color:#76716A;word-break:break-all">${url}</div>`;
-  grid.appendChild(d);QRCode.toCanvas(d.querySelector("canvas"),url,{width:180,margin:1});});}
-</script></body></html>
+/* ============================================================================
+   qr.html — Genera i QR code per ogni tavolo del locale.
+   I tavoli vengono presi LIVE da Pienissimo (via edge function get-tavoli).
+   Se la funzione non è ancora deployata, mostra un errore chiaro.
+   I QR usano api.qrserver.com: nessuna libreria JS, funziona sempre in stampa.
+   ============================================================================ */
+const {SUPABASE_URL, SUPABASE_ANON_KEY, SLUG} = window.AYCE_CFG || {};
+// pre-compila l'URL col dominio attuale se siamo già su Vercel
+document.getElementById("base").value = location.origin === "null" ? "" : location.origin;
+
+const msg = (t, cls) => { document.getElementById("msg").innerHTML = `<div class="msg ${cls}">${t}</div>`; };
+async function fn(name, body) {
+  const r = await fetch(SUPABASE_URL + "/functions/v1/" + name, {
+    method: "POST",
+    headers: {"Content-Type":"application/json","Authorization":"Bearer "+SUPABASE_ANON_KEY,"apikey":SUPABASE_ANON_KEY},
+    body: JSON.stringify(body)
+  });
+  const j = await r.json();
+  if (!r.ok || !j.ok) throw new Error(j.error || "Errore edge function " + name);
+  return j;
+}
+
+async function genera() {
+  const base = document.getElementById("base").value.trim().replace(/\/$/, "");
+  if (!base) { msg("Inserisci l'indirizzo web (es. https://ayceflow.vercel.app)", "err"); return; }
+  if (!SUPABASE_URL || SUPABASE_URL.includes("INCOLLA")) { msg("Compila prima config.js con i dati Supabase", "err"); return; }
+  const grid = document.getElementById("grid");
+  grid.innerHTML = ""; msg("Recupero tavoli da Pienissimo…", "ok");
+
+  try {
+    // chiedo alla edge function i tavoli reali di Pienissimo
+    const res = await fn("get-tavoli", {slug: SLUG});
+    const tavoli = res.tavoli || [];
+    if (!tavoli.length) { msg("Nessun tavolo trovato. Verifica che get-tavoli sia deployata su Supabase.", "err"); return; }
+    msg(`✓ ${tavoli.length} tavoli trovati da Pienissimo`, "ok");
+    grid.innerHTML = "";
+    tavoli.forEach(t => {
+      // URL che il cliente aprirà scansionando il QR
+      const url = `${base}/index.html?t=${encodeURIComponent(t.qr_token)}`;
+      // QR come immagine dall'API (non serve libreria JS, funziona sempre anche in stampa)
+      const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=6&data=${encodeURIComponent(url)}`;
+      const card = document.createElement("div");
+      card.className = "qr-card";
+      card.innerHTML = `
+        <div class="qr-num">Tavolo ${t.numero}</div>
+        ${t.sala ? `<div style="font-size:11px;color:var(--muted)">${t.sala}</div>` : ""}
+        <img src="${qrSrc}" alt="QR Tavolo ${t.numero}" loading="lazy">
+        <div class="qr-url">${url}</div>`;
+      grid.appendChild(card);
+    });
+  } catch(e) {
+    msg(`✗ ${e.message}<br><small>Assicurati di aver deployato la funzione <b>get-tavoli</b> su Supabase Edge Functions.</small>`, "err");
+  }
+}
+</script>
+</body></html>
