@@ -10,7 +10,7 @@
 //      Va nei token dei QR e nel database. Una parola sola, niente spazi.
 // ============================================================================
 window.AYCE_CFG = {
-  SUPABASE_URL:      "https://INCOLLA-QUI.supabase.co",
-  SUPABASE_ANON_KEY: "INCOLLA-QUI-LA-CHIAVE-ANON",
+  SUPABASE_URL:      "https://kcglhgtzpclprbccsbte.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZ2xoZ3R6cGNscHJiY2NzYnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwODQwMzUsImV4cCI6MjA5OTY2MDAzNX0.AFnX5jdV2UIY_aXjB59wugCmoi3866AdiuyFAhg6uaY",
   SLUG:              "demo",   // ← codice del locale (lo scegli tu)
 };
