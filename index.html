@@ -175,8 +175,6 @@ function bootHTML(msg) {
 function header() {
   const g=globals(), lowTime=g.tempoLeft<900, showCop=CONF.coperti&&CONF.coperti.attivo;
   return `<header style="position:sticky;top:0;z-index:20;background:var(--ink);color:var(--paper)">
-    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px">
-  return `<header style="position:sticky;top:0;z-index:20;background:var(--ink);color:var(--paper)">
     <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;flex-wrap:wrap">
       <div style="display:flex;align-items:baseline;gap:8px;min-width:0">
         <span class="disp" style="font-size:20px;font-weight:800;color:var(--coral);white-space:nowrap">${esc(CONF.brand||"AYCEflow")}</span>
