@@ -19,13 +19,14 @@ select{border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-fam
 .info{border-left-color:var(--muted)}
 .quando{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .tipo{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:999px;background:var(--paper);border:1px solid var(--line)}
+.locale{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--ink);color:#fff}
 pre{background:var(--ink);color:#eee;padding:8px;border-radius:8px;font-size:11px;overflow:auto;margin:6px 0 0;max-height:160px}
 </style></head><body>
 <div class="wrap">
   <div class="top">
     <div>
       <button onclick="vaiHub()" class="disp" style="font-size:22px;font-weight:800;color:var(--coral);background:none;border:none;padding:0;cursor:pointer;font-family:inherit">AYCEflow · Log</button>
-      <div style="font-size:12px;color:var(--muted)">Cosa è successo davvero — per capire i problemi senza indovinare</div>
+      <div style="font-size:12px;color:var(--muted)" id="sott">Cosa è successo davvero — per capire i problemi senza indovinare</div>
     </div>
     <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
       <select id="filtro" onchange="carica()">
@@ -57,11 +58,24 @@ function vaiHub(){ location.href = SLUG ? "hub.html" : "admin-pezzanera.html"; }
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const classe = t => t==="ordine_ok" ? "ok" : t==="ordine_errore" ? "err" : "info";
+// nome del locale a cui appartiene l'evento (nel log globale e' essenziale:
+// senza, non sai di CHI stai leggendo l'errore)
+const nomeLocale = id => { const l = NOMI[id]; return l ? l.nome : (id ? "?" : "—"); };
+
+// mappa id-locale -> nome, cosi' nel log globale si vede DI CHI e' l'evento
+let NOMI = {};
+async function caricaNomi(){
+  try{
+    const {data} = await sb.from("locali").select("id,nome,slug");
+    (data||[]).forEach(l=>{ NOMI[l.id] = {nome:l.nome, slug:l.slug}; });
+  }catch(_){}
+}
 
 async function carica() {
   const out = document.getElementById("out");
   out.innerHTML = '<p style="color:var(--muted);font-size:13px">Caricamento…</p>';
   try {
+    if(!Object.keys(NOMI).length) await caricaNomi();
     let q = sb.from("log_eventi").select("*").order("creato_il",{ascending:false}).limit(100);
     // se sono un ristoratore, vedo SOLO gli eventi del mio locale
     if (SLUG) {
@@ -77,6 +91,7 @@ async function carica() {
       <div class="riga ${classe(e.tipo)}">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="tipo">${esc(e.tipo)}</span>
+          ${!SLUG ? `<span class="locale">${esc(nomeLocale(e.locale_id))}</span>` : ""}
           <span style="font-weight:600">${esc(e.messaggio||"")}</span>
           <span class="quando" style="margin-left:auto">${new Date(e.creato_il).toLocaleString("it-IT")}</span>
         </div>
@@ -86,6 +101,10 @@ async function carica() {
     out.innerHTML = `<div class="riga err">Errore: ${esc(e.message)}<br><span style="font-size:11px;color:var(--muted)">Hai rilanciato schema.sql? La tabella log_eventi è nuova.</span></div>`;
   }
 }
+// sottotitolo: dico subito se sto guardando un locale solo o tutti
+document.getElementById("sott").textContent = SLUG
+  ? "Eventi del locale: " + SLUG
+  : "Log GLOBALE — tutti i clienti (vista Pezzanera)";
 carica();
 </script>
 </body></html>

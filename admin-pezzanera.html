@@ -62,19 +62,35 @@ td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
     <div class="card">
       <h2 class="disp" style="font-size:17px;margin:0 0 4px">➕ Nuovo cliente</h2>
       <p style="font-size:12px;color:var(--muted);margin:0 0 14px">
-        Gli account si creano a mano dal SQL Editor di Supabase (le credenziali Pienissimo non passano dal browser, per sicurezza).
-        Compila qui i dati: ti genero la query da incollare.
+        Compila e clicca "Genera query SQL": ti do la query da incollare nel SQL Editor di Supabase.
+        (Le credenziali Pienissimo non passano mai dal browser: per questo si incolla a mano.)
       </p>
+
+      <div style="background:#F6F3EC;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:12px;line-height:1.5">
+        <b>🔵 Li inventiamo NOI</b> (scegli tu, servono solo ad AYCEflow):<br>
+        <b>Codice locale</b> = nome corto senza spazi (es. <code>sakura</code>). Finisce nei QR.<br>
+        <b>Nome locale</b> = come appare nell'app al cliente.<br>
+        <b>PIN</b> = quello che darai al ristoratore per entrare in hub.html.<br>
+        <b>Scadenza</b> = quando vuoi che si blocchi (vuoto = mai).<br><br>
+        <b>🟠 Vengono da PIENISSIMO</b> (dall'account del cliente):<br>
+        <b>utente / password / cod_attivazione</b> = le credenziali con cui il cliente
+        entra nell'app iPad "Pienissimo Pro". Chiediglieli, o guardali nel suo iPad
+        in fase di attivazione.<br>
+        <b>id_multi / schema</b> = codici interni. Si ricavano catturando il traffico
+        dell'app Pro (Proxyman/HAR) al login — vedi <code>RIFERIMENTO_API.md</code>.
+        Nel demo: <code>6625</code> e <code>user_5901</code>.
+      </div>
+
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label>Codice locale (slug)</label><input id="n_slug" placeholder="es. sakura"></div>
-        <div><label>Nome locale</label><input id="n_nome" placeholder="es. Sakura Sushi"></div>
-        <div><label>PIN del ristoratore</label><input id="n_pin" placeholder="es. 1234"></div>
-        <div><label>Scadenza licenza (opzionale)</label><input id="n_scad" type="date"></div>
-        <div><label>Pienissimo: id_multi</label><input id="n_idmulti" placeholder="es. 6625"></div>
-        <div><label>Pienissimo: schema</label><input id="n_schema" placeholder="es. user_5901"></div>
-        <div><label>Pienissimo: cod_attivazione</label><input id="n_cod" placeholder="es. SVC01"></div>
-        <div><label>Pienissimo: utente</label><input id="n_utente" placeholder="es. maxtest"></div>
-        <div><label>Pienissimo: password</label><input id="n_psw" placeholder="es. 1234"></div>
+        <div><label>🔵 Codice locale (slug)</label><input id="n_slug" placeholder="es. sakura"></div>
+        <div><label>🔵 Nome locale</label><input id="n_nome" placeholder="es. Sakura Sushi"></div>
+        <div><label>🔵 PIN del ristoratore</label><input id="n_pin" placeholder="es. 1234"></div>
+        <div><label>🔵 Scadenza licenza (vuoto = mai)</label><input id="n_scad" type="date"></div>
+        <div><label>🟠 Pienissimo: id_multi</label><input id="n_idmulti" placeholder="es. 6625"></div>
+        <div><label>🟠 Pienissimo: schema</label><input id="n_schema" placeholder="es. user_5901"></div>
+        <div><label>🟠 Pienissimo: cod_attivazione</label><input id="n_cod" placeholder="es. SVC01"></div>
+        <div><label>🟠 Pienissimo: utente</label><input id="n_utente" placeholder="es. maxtest"></div>
+        <div><label>🟠 Pienissimo: password</label><input id="n_psw" placeholder="es. 1234"></div>
       </div>
       <button class="btn-ink" style="margin-top:12px" onclick="generaSql()">Genera query SQL</button>
       <pre id="sqlout" style="display:none;background:var(--ink);color:#eee;padding:12px;border-radius:10px;font-size:11px;overflow:auto;margin-top:12px"></pre>

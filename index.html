@@ -119,8 +119,13 @@ function globals() {
   const cooldownLeft = Math.max(0, Math.ceil((lastAt+(G.cooldownMin||0)*60000-nowTs)/1000));
   // il timer parte da quando il carrello si e' aperto (non dal caricamento della
   // pagina!), se no bastava ricaricare per farlo ripartire da capo.
-  const apertoDa = CART ? new Date(CART.aperto_il).getTime() : nowTs;
-  const tempoLeft = Math.max(0, (G.tempoTavoloMin||100)*60 - Math.floor((nowTs-apertoDa)/1000));
+  // Se aperto_il manca o e' sballato, uso "adesso": meglio un timer pieno che
+  // un timer a zero che blocca tutto (era il bug del tavolo rotto).
+  const totSec = (G.tempoTavoloMin||100)*60;
+  const apRaw = CART && CART.aperto_il ? new Date(CART.aperto_il).getTime() : NaN;
+  const apertoDa = Number.isFinite(apRaw) ? apRaw : nowTs;
+  const passati = Math.floor((nowTs-apertoDa)/1000);
+  const tempoLeft = Number.isFinite(passati) ? Math.max(0, totSec - passati) : totSec;
   return {maxGiro, items, count, over:count>maxGiro, cooldownLeft, tempoLeft, blocked:(count>maxGiro||cooldownLeft>0||tempoLeft===0)};
 }
 
@@ -411,10 +416,14 @@ let CHIUSO = false;
     //      agganciata (chiave per tavolo). muore quando chiudi la scheda.
     const chiaveSess = "ayce_cart_"+tav.id;
     const cartRicordato = sessionStorage.getItem(chiaveSess);
-    let {data:attivo} = await sb.rpc("carrello_attivo",{p_tavolo:tav.id});
-    attivo = Array.isArray(attivo)?attivo[0]:attivo;
 
-    if(attivo){
+    // le funzioni tornano una LISTA (setof): piena o vuota, mai ambigua.
+    const primo = x => (Array.isArray(x) ? (x[0]||null) : (x||null));
+    const {data:attivoRaw, error:eA} = await sb.rpc("carrello_attivo",{p_tavolo:tav.id});
+    if(eA) throw new Error("Manca la funzione 'carrello_attivo': rilancia schema.sql su Supabase. ("+eA.message+")");
+    const attivo = primo(attivoRaw);
+
+    if(attivo && attivo.id){
       // c'e' un carrello attivo -> mi ci aggancio (che sia il mio o dei compagni di tavolo)
       CART = attivo;
       sessionStorage.setItem(chiaveSess, attivo.id);
@@ -425,8 +434,10 @@ let CHIUSO = false;
       app.innerHTML = schermataChiuso(); return;
     } else {
       // scheda pulita + nessun carrello attivo -> sono un cliente NUOVO: apro il tavolo
-      const {data:nuovo} = await sb.rpc("apri_tavolo",{p_tavolo:tav.id});
-      CART = Array.isArray(nuovo)?nuovo[0]:nuovo;
+      const {data:nuovoRaw, error:eN} = await sb.rpc("apri_tavolo",{p_tavolo:tav.id});
+      if(eN) throw new Error("Manca la funzione 'apri_tavolo': rilancia schema.sql. ("+eN.message+")");
+      CART = primo(nuovoRaw);
+      if(!CART || !CART.id) throw new Error("Non riesco ad aprire il tavolo. Rilancia schema.sql su Supabase.");
       sessionStorage.setItem(chiaveSess, CART.id);
     }
 
@@ -467,10 +478,14 @@ let CHIUSO = false;
 
     // polling di sicurezza: rete di protezione se un evento realtime si perde
     setInterval(async ()=>{
-      if(document.hidden||CHIUSO) return;
+      if(document.hidden||CHIUSO||!CART||!CART.id) return;
       try{
-        const {data:c} = await sb.from("carrelli").select("*").eq("id",CART.id).maybeSingle();
-        if(!c || c.attivo===false){ CHIUSO=true; app.innerHTML=schermataChiuso(); return; }
+        const {data:c, error} = await sb.from("carrelli").select("*").eq("id",CART.id).maybeSingle();
+        // ⚠️ se c'e' un errore o non trovo la riga, NON chiudo il tavolo: potrebbe
+        // essere solo un problema di rete. Saluto SOLO se il carrello dice
+        // esplicitamente "non sono piu' attivo".
+        if(error || !c) return;
+        if(c.attivo===false){ CHIUSO=true; app.innerHTML=schermataChiuso(); return; }
         if(JSON.stringify(c.items)!==JSON.stringify(CART.items)){ CART=c; render(); }
       }catch(_){}
     }, 4000);
