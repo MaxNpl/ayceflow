@@ -151,9 +151,14 @@ button{border:none;border-radius:10px;padding:10px 18px;font-weight:700;cursor:p
    SLUG viene da config.js, non più dall'utente.
    ============================================================================ */
 const {SUPABASE_URL, SUPABASE_ANON_KEY} = window.AYCE_CFG || {};
-// il locale arriva dall'hub ristoratore (?l=codice). Multi-cliente: un solo
-// deploy serve tutti i ristoranti, ognuno vede solo il suo.
-const SLUG = new URLSearchParams(location.search).get("l") || "";
+// Il locale arriva dall'hub (?l=codice) oppure dalla sessione del ristoratore.
+// Se manca del tutto, torno all'hub invece di rompermi.
+function sessioneRistoratore(){
+  try{ return JSON.parse(sessionStorage.getItem("ayce_ristoratore")||"null"); }catch(_){ return null; }
+}
+const SESS = sessioneRistoratore();
+const SLUG = new URLSearchParams(location.search).get("l") || (SESS && SESS.slug) || "";
+if(!SLUG){ location.replace("hub.html"); }
 let PIN = "";   // serve al server per autorizzare il salvataggio
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 document.getElementById("slugLabel").textContent = SLUG || "—";

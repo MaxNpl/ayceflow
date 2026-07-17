@@ -51,9 +51,18 @@ pre{background:var(--ink);color:#eee;padding:8px;border-radius:8px;font-size:11p
    è andato, si guarda qui.
    ============================================================================ */
 const {SUPABASE_URL, SUPABASE_ANON_KEY} = window.AYCE_CFG || {};
-// ?l=codice  -> log del SOLO locale del ristoratore
-// niente ?l= -> log di tutti (lo usa il nostro hub Pezzanera)
-const SLUG = new URLSearchParams(location.search).get("l") || "";
+
+// Chi sta guardando?
+//   - ristoratore  -> vede SOLO il suo locale (dal link ?l= o dalla sua sessione)
+//   - noi Pezzanera -> se abbiamo fatto login su admin-pezzanera, vediamo tutto
+//   - nessuno dei due -> all'hub. (Cosi' un ristoratore non vede mai il log globale.)
+function sessioneRistoratore(){
+  try{ return JSON.parse(sessionStorage.getItem("ayce_ristoratore")||"null"); }catch(_){ return null; }
+}
+const SESS   = sessioneRistoratore();
+const MASTER = sessionStorage.getItem("ayce_master");
+const SLUG   = new URLSearchParams(location.search).get("l") || (SESS && SESS.slug) || "";
+if(!SLUG && !MASTER){ location.replace("hub.html"); }
 function vaiHub(){ location.href = SLUG ? "hub.html" : "admin-pezzanera.html"; }
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
