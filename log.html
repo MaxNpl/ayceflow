@@ -35,6 +35,8 @@ pre{background:var(--ink);color:#eee;padding:8px;border-radius:8px;font-size:11p
         <option value="ordine_ok">Solo ordini riusciti</option>
         <option value="ordine_errore">Solo errori</option>
         <option value="tavolo_chiuso">Chiusure tavolo</option>
+        <option value="tavoli_sync">Sincronizzazioni tavoli</option>
+        <option value="licenza">Licenze</option>
       </select>
       <button class="btn" onclick="carica()">↻ Aggiorna</button>
       <button class="btn" onclick="vaiHub()">🏠 Hub</button>
@@ -68,7 +70,7 @@ if(!SLUG && !MASTER){ location.replace("hub.html"); }
 function vaiHub(){ location.href = SLUG ? "hub.html" : "admin-pezzanera.html"; }
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const classe = t => t==="ordine_ok" ? "ok" : t==="ordine_errore" ? "err" : "info";
+const classe = t => t==="ordine_ok" ? "ok" : (t==="ordine_errore"||t==="menu_errore") ? "err" : "info";
 // nome del locale a cui appartiene l'evento (nel log globale e' essenziale:
 // senza, non sai di CHI stai leggendo l'errore)
 const nomeLocale = id => { const l = NOMI[id]; return l ? l.nome : (id ? "?" : "—"); };
@@ -130,4 +132,7 @@ document.getElementById("sott").textContent = SLUG
   : "Vista Pezzanera — scegli un locale dalla tendina o guardali tutti insieme";
 carica();
 </script>
+
+<!-- pulsante fisso: torna alla pagina d'ingresso (start.html) senza digitare url -->
+<a href="start.html" title="Pagina d'ingresso" style="position:fixed;left:16px;bottom:16px;z-index:9999;width:48px;height:48px;border-radius:50%;background:#181821;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:20px">🏠</a>
 </body></html>

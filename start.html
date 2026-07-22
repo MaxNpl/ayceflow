@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="it"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AYCEflow</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap');
+:root{--ink:#181821;--paper:#FAF6EF;--coral:#F2542D;--line:#ECE4D7;--muted:#76716A}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+.disp{font-family:'Bricolage Grotesque',system-ui}
+h1{font-size:52px;font-weight:800;color:var(--coral);margin:0}
+.sub{color:var(--muted);font-size:15px;margin:6px 0 36px}
+.scelte{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:640px}
+.scelta{flex:1;min-width:230px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:30px 24px;text-decoration:none;color:var(--ink);transition:box-shadow .15s,transform .1s,border-color .15s}
+.scelta:hover{box-shadow:0 8px 30px rgba(0,0,0,.09);transform:translateY(-2px);border-color:#ccc}
+.ic{font-size:40px;margin-bottom:10px}
+.tt{font-family:'Bricolage Grotesque';font-weight:800;font-size:20px}
+.dd{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.4}
+.foot{margin-top:40px;font-size:12px;color:var(--muted)}
+.foot a{color:var(--muted)}
+</style></head><body>
+  <h1 class="disp">AYCEflow</h1>
+  <p class="sub">Ordinazioni al tavolo per ristoranti All You Can Eat</p>
+  <div class="scelte">
+    <a class="scelta" href="hub.html">
+      <div class="ic">🏪</div>
+      <div class="tt">Sono un ristoratore</div>
+      <div class="dd">Impostazioni, QR dei tavoli e log del mio locale</div>
+    </a>
+    <a class="scelta" href="admin-pezzanera.html">
+      <div class="ic">🏢</div>
+      <div class="tt">Pezzanera</div>
+      <div class="dd">Gestione clienti, licenze e diagnostica</div>
+    </a>
+  </div>
+  <p class="foot">
+    Sei un cliente al tavolo? <b>Scansiona il QR</b> che trovi sul tavolo.<br>
+    <span style="opacity:.7">Questa pagina è per lo staff.</span>
+  </p>
+</body></html>

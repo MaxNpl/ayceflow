@@ -115,6 +115,10 @@ button{border:none;border-radius:10px;padding:10px 18px;font-weight:700;cursor:p
         <b>Best Seller</b> su Pienissimo finiscono da soli tra i "preferiti",
         quelli marcati <b>Novità</b> tra gli "in evidenza".
       </p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label>Come chiamare un "giro" (singolare)</label><input id="pgSing" placeholder="ordine"></div>
+        <div><label>Plurale</label><input id="pgPlur" placeholder="ordini"></div>
+      </div>
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
         <div><label>Nome per "Preferiti" (★)</label><input id="lblFav" placeholder="Preferiti"></div>
         <div><label>Colore</label><input id="lblFavCol" type="color" style="height:42px;padding:4px"></div>
@@ -278,6 +282,8 @@ function popolaForm() {
   val("lblFavCol",(et.preferiti&&et.preferiti.colore)||"#E0A100");
   val("lblEvid", (et.evidenza&&et.evidenza.testo)||"In evidenza");
   val("lblEvidCol",(et.evidenza&&et.evidenza.colore)||"#E0A100");
+  const pg = CONF.parolaGiro||{};
+  val("pgSing", pg.singolare||"ordine"); val("pgPlur", pg.plurale||"ordini");
   popolaDestOptions();
   val("bandest", ban.dest || (ban.link?"url":""));
   if(ban.dest==="categoria") val("bancat", ban.destValore||"");
@@ -354,6 +360,7 @@ async function salva() {
       preferiti: {testo:v("lblFav").value||"Preferiti",   colore:v("lblFavCol").value||"#E0A100"},
       evidenza:  {testo:v("lblEvid").value||"In evidenza",colore:v("lblEvidCol").value||"#E0A100"},
     },
+    parolaGiro: {singolare:(v("pgSing").value||"ordine").toLowerCase(), plurale:(v("pgPlur").value||"ordini").toLowerCase()},
     regole, preferiti, evidenza
   };
   try {
@@ -369,4 +376,7 @@ async function salva() {
   }
 }
 </script>
+
+<!-- pulsante fisso: torna alla pagina d'ingresso (start.html) senza digitare url -->
+<a href="start.html" title="Pagina d'ingresso" style="position:fixed;left:16px;bottom:16px;z-index:9999;width:48px;height:48px;border-radius:50%;background:#181821;color:#fff;display:flex;align-items:center;justify-content:center;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.25);font-size:20px">🏠</a>
 </body></html>

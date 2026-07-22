@@ -119,6 +119,17 @@ const LBL = () => {
 const isFav  = id => (CONF.preferiti||[]).includes(Number(id)) || !!(MENU.find(p=>p.id==id)||{}).bestseller;
 const isEvid = id => (CONF.evidenza ||[]).includes(Number(id)) || !!(MENU.find(p=>p.id==id)||{}).novita;
 
+// parola per il "giro" — personalizzabile per locale (default: ordine/ordini).
+// Il ristoratore la cambia dal backoffice senza toccare il codice.
+const GW = () => {
+  const g = CONF.parolaGiro || {};
+  const sing = g.singolare || "ordine";
+  const plur = g.plurale || "ordini";
+  return { s: sing, p: plur,
+    S: sing.charAt(0).toUpperCase()+sing.slice(1),
+    P: plur.charAt(0).toUpperCase()+plur.slice(1) };
+};
+
 // ---- globali giro corrente ----
 function globals() {
   const G=CONF.global||{};
@@ -177,7 +188,7 @@ async function invia() {
   sending=true; sendMsg={t:"",k:""}; render();
   try {
     const res = await fn("send-order", {slug:SLUG, tavolo_id:TAVOLO.id});
-    sendMsg = {t:"Ordine #"+res.id_ordine+" in cucina", k:"ok"};
+    sendMsg = {t:GW().S+" #"+res.id_ordine+" in cucina", k:"ok"};
     setTimeout(()=>{if(sendMsg.k==="ok"){sendMsg={t:"",k:""};render();}}, 5000);
   } catch(e) {
     // se il server dice "tavolo chiuso", mostro la schermata di saluto
@@ -296,7 +307,7 @@ function bodyHTML() {
   const cards = visible.map(p=>cardHTML(p)).join("");
   const gOra = giriDiOra();
   const giriHTML = gOra.length ? `<section style="margin-top:36px">
-    <h2 class="disp" style="font-size:20px;font-weight:800;margin:0 0 12px">Giri inviati</h2>
+    <h2 class="disp" style="font-size:20px;font-weight:800;margin:0 0 12px">${GW().P} inviati</h2>
     ${gOra.map(gi=>`<div class="card" style="padding:16px;margin-bottom:10px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <div style="display:flex;align-items:center;gap:8px">
@@ -313,7 +324,7 @@ function bodyHTML() {
 
   return `<div class="wrap layout">
     <main style="padding-top:16px">
-      <h1 class="disp" style="font-size:28px;font-weight:800;margin:0 0 12px">Componi il giro</h1>
+      <h1 class="disp" style="font-size:28px;font-weight:800;margin:0 0 12px">Componi ${'l\''+GW().s}</h1>
       <div id="menuTop" class="noscroll" style="display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:8px 16px;position:sticky;top:60px;z-index:10;background:var(--paper)">${catbar}</div>
       <div class="grid2" style="margin-top:12px">${cards}</div>
       ${giriHTML}
@@ -325,7 +336,7 @@ function bodyHTML() {
       <div style="margin:0 12px 8px;border-radius:16px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.3);background:var(--ink);color:var(--paper)">${roundPanel(g)}</div>
     </div>
     <button onclick="sheetOpen=!sheetOpen;render()" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:${g.count&&!g.blocked?'var(--coral)':'var(--ink)'};color:var(--paper);border:none;cursor:pointer">
-      <span class="disp" style="font-weight:800;font-size:18px">${g.count===0?'Giro vuoto':'Giro · '+g.count+' '+(g.count===1?'pezzo':'pezzi')}</span>
+      <span class="disp" style="font-weight:800;font-size:18px">${g.count===0?GW().S+' vuoto':GW().S+' · '+g.count+' '+(g.count===1?'pezzo':'pezzi')}</span>
       <span style="font-weight:700;opacity:.7">${sheetOpen?'▼':'▲'}</span>
     </button>
   </div>`;
@@ -370,16 +381,16 @@ function roundPanel(g) {
       </div>
     </div>`).join("");
   const notes=[];
-  if(g.over) notes.push(`<p class="note" style="background:var(--coralDeep)">Max ${g.maxGiro===Infinity?'∞':g.maxGiro} pezzi a giro. Togline ${g.count-g.maxGiro}.</p>`);
+  if(g.over) notes.push(`<p class="note" style="background:var(--coralDeep)">Max ${g.maxGiro===Infinity?'∞':g.maxGiro} pezzi per ${GW().s}. Togline ${g.count-g.maxGiro}.</p>`);
   if(g.tempoLeft===0) notes.push(`<p class="note" style="background:var(--coralDeep)">Tempo tavolo terminato.</p>`);
-  if(g.cooldownLeft>0&&!g.over&&g.tempoLeft>0) notes.push(`<p class="note" style="background:var(--inkSoft)">Prossimo giro tra <b>${fmt(g.cooldownLeft)}</b>.</p>`);
+  if(g.cooldownLeft>0&&!g.over&&g.tempoLeft>0) notes.push(`<p class="note" style="background:var(--inkSoft)">Prossimo ${GW().s} tra <b>${fmt(g.cooldownLeft)}</b>.</p>`);
   if(sendMsg.k==="err") notes.push(`<p class="note" style="background:var(--coralDeep)">⚠ ${esc(sendMsg.t)}</p>`);
   if(sendMsg.k==="ok") notes.push(`<p class="note" style="background:var(--wasabi)">✓ ${esc(sendMsg.t)}</p>`);
   const canSend = g.count && !g.blocked && !sending;
   return `<div>
     <div style="padding:18px 20px 14px;border-bottom:1px solid var(--inkSoft);display:flex;align-items:center;justify-content:space-between">
       <div>
-        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.15em;opacity:.5;margin:0">Giro · condiviso</p>
+        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.15em;opacity:.5;margin:0">${GW().S} · condiviso</p>
         <p class="disp tab" style="font-size:28px;font-weight:800;line-height:1;margin:4px 0 0">
           <span style="color:${g.over?'var(--coral)':'var(--paper)'}">${g.count}</span>
           ${g.maxGiro!==Infinity?`<span style="opacity:.4;font-size:18px"> / ${g.maxGiro} pezzi</span>`:""}
@@ -390,13 +401,13 @@ function roundPanel(g) {
     <div class="noscroll" style="padding:12px 20px;max-height:240px;overflow:auto">
       ${g.items.length
         ? `<div style="display:flex;flex-direction:column;gap:8px">${items}</div>`
-        : `<p style="opacity:.5;font-size:14px;text-align:center;padding:24px 0">Tocca i piatti per comporre il giro.</p>`}
+        : `<p style="opacity:.5;font-size:14px;text-align:center;padding:24px 0">Tocca i piatti per comporre ${'l\''+GW().s}.</p>`}
     </div>
     <div style="padding:8px 20px 20px">
       ${notes.join("")}
       <button onclick="invia()" ${canSend?'':'disabled'} class="disp"
         style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border-radius:12px;font-weight:800;font-size:17px;background:${canSend?'var(--coral)':'var(--inkSoft)'};color:var(--paper);opacity:${canSend?1:.5}">
-        ${sending?'<span class="spin">◠</span> Invio…':'✓ Invia il giro'}
+        ${sending?'<span class="spin">◠</span> Invio…':'✓ Invia '+(GW().s==='giro'?'il giro':GW().s==='ordine'?"l'ordine":'· '+GW().S)}
       </button>
       <p style="font-size:11px;opacity:.4;text-align:center;margin:8px 0 0">Ordina solo ciò che mangi.</p>
     </div>
